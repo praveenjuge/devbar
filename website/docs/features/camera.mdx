@@ -1,0 +1,20 @@
+---
+title: Camera
+description: See which apps are allowed to use your camera and take access back with one click, without digging through System Settings.
+sidebar:
+  icon: camera
+---
+
+**Camera** in the menu lists the apps in **System Settings → Privacy & Security → Camera**. Apps that are allowed have a checkmark.
+
+Click an allowed app to take its access away. Devbar runs `tccutil reset Camera <bundle id>`, so the app asks again the next time it wants the camera. Allow that prompt to turn it back on.
+
+macOS has no public way for another app to grant camera access, so Devbar can only take it away. An app you've denied opens Camera settings when you click it.
+
+## Apps that ask next time
+
+A reset removes the app from macOS's list. Devbar remembers every app it has seen and keeps showing it as **Asks next time**. Clicking it opens the app.
+
+## Full Disk Access
+
+macOS keeps camera decisions in a protected database, so Devbar needs Full Disk Access to read them. Until you grant it, the Camera submenu links to that setting. Devbar opens the database read-only and never writes to it.

@@ -1,0 +1,8 @@
+node_modules/
+.blume/
+dist/
+.env.local
+.cloudflare/
+.wrangler/
+.dev.vars*
+.env

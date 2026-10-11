@@ -58,7 +58,7 @@ Delete runs `git worktree remove --force --force`, which deletes the folder with
 
 ## Releases
 
-Every push to `main` builds on Apple Silicon runners, bumps the patch version tag (`v0.1.0`, `v0.1.1`, …), and publishes `.zip`, `.dmg`, and `.pkg` artifacts. The app and DMG are signed and notarized. The PKG is signed and notarized only when a Developer ID Installer certificate is configured; otherwise it contains the notarized app but is unsigned and does not pass Gatekeeper's installer assessment. The tag is created only after successful packaging.
+Every push to `main` (except changes only under `website/`) builds on Apple Silicon runners, bumps the patch version tag (`v0.1.0`, `v0.1.1`, …), and publishes `.zip`, `.dmg`, and `.pkg` artifacts. The app and DMG are signed and notarized. The PKG is signed and notarized only when a Developer ID Installer certificate is configured; otherwise it contains the notarized app but is unsigned and does not pass Gatekeeper's installer assessment. The tag is created only after successful packaging.
 
 CI needs these repository secrets (`gh secret set NAME --repo praveenjuge/devbar`):
 
@@ -77,6 +77,19 @@ gh secret set APPLE_DEVELOPER_CERTIFICATE_PASSWORD   # paste .p12 password
 gh secret set APPLE_ID                               # paste Apple ID email
 gh secret set APPLE_APP_SPECIFIC_PASSWORD            # paste app-specific password
 ```
+
+## Website
+
+[devbar.praveenjuge.com](https://devbar.praveenjuge.com) is a [Blume](https://useblume.dev) docs site in `website/`, served as a static-assets Cloudflare Worker (`devbar`). Pages are Markdown in `website/docs/`; screenshots live in `website/public/screenshots/`.
+
+```sh
+cd website
+bun install
+bun run dev      # local preview
+bun run deploy   # blume build && cf deploy (manual deploy)
+```
+
+Cloudflare Workers Builds deploys it on every push to `main` that touches `website/`: root directory `/website`, build command `bun run build`, deploy command `bunx cf deploy`, and `BUN_VERSION` set to match `bun.lock`. `cloudflare.config.ts` sets the Worker name and custom domain; `wrangler.config.ts` points `cf` at Blume's `dist/`.
 
 ## Settings
 

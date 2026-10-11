@@ -1,0 +1,27 @@
+---
+title: Privacy
+description: What Devbar reads on your Mac, what it sends over the network, and what it never touches.
+sidebar:
+  icon: shield
+---
+
+Devbar has no account, no analytics, and no server of its own. Everything it shows comes from your Mac or from the AI tools you already use.
+
+## Logins
+
+Devbar reuses the logins your AI tools already saved. It only reads them: it never refreshes a token or writes anything back, so it can't sign you out of Codex, Claude Code, or Muse.
+
+| Tool | Reads | Sends a request to |
+| --- | --- | --- |
+| Codex | `~/.codex/auth.json` | `chatgpt.com` for your usage |
+| Claude | Claude Code's Keychain item, or `~/.claude/.credentials.json` | `api.anthropic.com` for your usage |
+| Muse | `~/.config/muse/auth.json`, or its Keychain item | `api.meta.ai`, which returns a short-lived key that Devbar throws away |
+
+Keychain items are read through the system's `security` tool and kept in memory only. Background refreshes never show a Keychain prompt; only opening the menu or choosing Refresh can.
+
+## Everything else stays local
+
+- **Dev servers** come from `lsof` on your Mac.
+- **Worktrees** come from scanning your home folder and running `git` locally, only while the Worktrees window is open.
+- **Camera** reads macOS's camera permissions database read-only, and only with Full Disk Access.
+- **Updates** check the release feed on GitHub, without credentials or a system profile.

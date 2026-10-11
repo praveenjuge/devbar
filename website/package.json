@@ -1,0 +1,18 @@
+{
+  "name": "devbar-website",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "blume dev",
+    "build": "blume build",
+    "doctor": "blume doctor",
+    "deploy": "blume build && cf deploy"
+  },
+  "dependencies": {
+    "blume": "^2.2.3"
+  },
+  "devDependencies": {
+    "cf": "1.0.0-beta.14",
+    "wrangler": "4.149.0"
+  }
+}

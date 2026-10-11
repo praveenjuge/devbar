@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+    # The website deploys through Cloudflare Workers Builds, not app releases.
+    paths-ignore:
+      - "website/**"
   workflow_dispatch:
 
 # Serialize releases so two pushes can't compute the same version.

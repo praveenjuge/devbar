@@ -1,0 +1,64 @@
+---
+title: Devbar
+description: A native macOS menu-bar app for developers. See your Codex, Claude, and Muse quota, the dev servers running on your Mac, and the git worktrees you can clean up.
+mode: custom
+sidebar:
+  hidden: true
+---
+
+<div className="mx-auto max-w-6xl px-6 pt-16 pb-24 sm:pt-24">
+<div className="mx-auto max-w-3xl text-center">
+
+<Badge shape="pill" stroke size="lg">Free · macOS 14+ · Apple Silicon</Badge>
+
+# Your dev tools, one click away in the menu bar
+
+AI quota, running dev servers, and git worktree cleanup in one small native app.
+
+<div className="not-prose mt-8 flex flex-wrap justify-center gap-3">
+  <a href="https://github.com/praveenjuge/devbar/releases/latest" className="devbar-button-primary rounded-blume bg-accent px-5 py-3 shadow-sm hover:opacity-90">Download for Mac</a>
+  <a href="/install" className="devbar-button-secondary rounded-blume border border-border bg-background/70 px-5 py-3 backdrop-blur hover:bg-muted">Read the docs</a>
+</div>
+
+</div>
+
+<Frame>
+  <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="dark:hidden" />
+  <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="hidden dark:block" />
+</Frame>
+
+## Everything in one menu
+
+<CardGroup cols={3}>
+  <Card title="AI quota" href="/features/ai-quota" icon="gauge">
+    Codex, Claude, and Muse limits, and when they reset.
+  </Card>
+  <Card title="Dev servers" href="/features/dev-servers" icon="server">
+    Every port your projects listen on. Open, copy, or stop.
+  </Card>
+  <Card title="Worktrees" href="/features/worktrees" icon="git-branch">
+    Find merged and stale worktrees, then delete them safely.
+  </Card>
+  <Card title="Camera" href="/features/camera" icon="camera">
+    Take camera access back from any app in one click.
+  </Card>
+  <Card title="Caffeinate" href="/features/caffeinate" icon="coffee">
+    Keep the display awake during a long build.
+  </Card>
+  <Card title="Updates" href="/updates" icon="refresh-cw">
+    Signed updates that download in the background.
+  </Card>
+</CardGroup>
+
+## Clean up worktrees
+
+<Frame caption="Merged, changed, locked, and stale worktrees from every repo in your home folder.">
+  <img src="/screenshots/worktrees-light.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="dark:hidden" />
+  <img src="/screenshots/worktrees-dark.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="hidden dark:block" />
+</Frame>
+
+<Callout type="tip" title="Private by design" icon="shield">
+  Devbar reads the logins you already have and never writes them back. No account, no analytics. [See what it reads](/privacy).
+</Callout>
+
+</div>

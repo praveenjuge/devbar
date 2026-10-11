@@ -1,0 +1,60 @@
+---
+title: Install
+description: Download Devbar, open it once, and it lives in your menu bar. Works on Apple Silicon Macs running macOS 14 or later.
+sidebar:
+  icon: download
+---
+
+Devbar is a menu-bar app, so it has no Dock icon or main window. After you open it, look for the gauge icon near the clock.
+
+## Requirements
+
+- A Mac with Apple Silicon
+- macOS 14 Sonoma or later
+- For AI quota, a login for the tools you use: the Codex CLI, Claude Code, or Muse. Devbar reuses those logins and never asks for a password of its own.
+
+## Download
+
+<Steps>
+  <Step title="Get the latest release">
+    Download the `.dmg` from the [latest release](https://github.com/praveenjuge/devbar/releases/latest) on GitHub. Each release also has a `.zip` and a `.pkg` installer if you prefer those.
+  </Step>
+  <Step title="Move it to Applications">
+    Open the disk image and drag **Devbar** into **Applications**.
+  </Step>
+  <Step title="Open it">
+    Open Devbar from Applications or Spotlight. The app is signed and notarized by Apple, so it opens without a warning.
+  </Step>
+</Steps>
+
+## First run
+
+Click the gauge icon in the menu bar to open the menu. Devbar refreshes your quota right away and then every 10 minutes.
+
+The first time Devbar reads your Claude Code or Muse login, macOS asks whether it can use that item in your Keychain. Choose **Always Allow** so you aren't asked again. Devbar reads Keychain items through the system's `security` tool, so one approval keeps working after updates.
+
+To start Devbar when you log in, turn on **Launch at login** in [Settings](/settings).
+
+:::note
+Camera access needs Full Disk Access, because macOS keeps camera permissions in a protected database. Devbar only asks when you open the Camera menu. See [Camera](/features/camera).
+:::
+
+## Build from source
+
+Devbar is a Swift package. To build and run a debug copy:
+
+```bash
+git clone https://github.com/praveenjuge/devbar.git
+cd devbar
+swift build
+.build/debug/Devbar
+```
+
+A few flags print data as JSON and quit, which helps when something looks off:
+
+```bash
+.build/debug/Devbar --dump-usage      # AI quota from each provider
+.build/debug/Devbar --dump-ports      # detected dev servers
+.build/debug/Devbar --dump-worktrees  # git worktrees in your home folder
+.build/debug/Devbar --dump-camera     # camera permissions (needs Full Disk Access)
+```
