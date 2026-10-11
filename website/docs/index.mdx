@@ -1,15 +1,15 @@
 ---
 title: Devbar
-description: A native macOS menu-bar app for developers. See your Codex, Claude, and Muse quota, the dev servers running on your Mac, and the git worktrees you can clean up.
+description: A native macOS menu-bar app for developers. AI quota, running dev servers, and git worktree cleanup, one click away.
 mode: custom
 sidebar:
   hidden: true
 ---
 
-<div className="mx-auto max-w-6xl px-6 pt-16 pb-24 sm:pt-24">
+<div className="mx-auto max-w-5xl px-6 pt-16 pb-24 sm:pt-24">
 <div className="mx-auto max-w-3xl text-center">
 
-<Badge shape="pill" stroke size="lg">Free · macOS 14+ · Apple Silicon</Badge>
+<Badge shape="pill" stroke size="lg" icon="sparkles">Free for macOS 14+ on Apple Silicon</Badge>
 
 # Your dev tools, one click away in the menu bar
 
@@ -22,10 +22,26 @@ AI quota, running dev servers, and git worktree cleanup in one small native app.
 
 </div>
 
-<Frame>
-  <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="dark:hidden" />
-  <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="hidden dark:block" />
-</Frame>
+<Tabs inline hash={false} sync={false}>
+  <Tab title="Menu" icon="gauge">
+    <Frame caption="Quota for every AI tool, the dev servers you're running, and quick actions.">
+      <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="dark:hidden" />
+      <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="hidden dark:block" />
+    </Frame>
+  </Tab>
+  <Tab title="Worktrees" icon="git-branch">
+    <Frame caption="Merged, changed, locked, and stale worktrees from every repo in your home folder.">
+      <img src="/screenshots/worktrees-light.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="dark:hidden" />
+      <img src="/screenshots/worktrees-dark.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="hidden dark:block" />
+    </Frame>
+  </Tab>
+  <Tab title="Settings" icon="settings">
+    <Frame caption="Pick your AI tools, manage dev servers, and start at login.">
+      <img src="/screenshots/settings-light.png" width="472" alt="Devbar Settings with Providers, Dev Servers, General, and Updates sections" className="dark:hidden" />
+      <img src="/screenshots/settings-dark.png" width="472" alt="Devbar Settings with Providers, Dev Servers, General, and Updates sections" className="hidden dark:block" />
+    </Frame>
+  </Tab>
+</Tabs>
 
 ## Everything in one menu
 
@@ -50,15 +66,46 @@ AI quota, running dev servers, and git worktree cleanup in one small native app.
   </Card>
 </CardGroup>
 
-## Clean up worktrees
+## Up and running in a minute
 
-<Frame caption="Merged, changed, locked, and stale worktrees from every repo in your home folder.">
-  <img src="/screenshots/worktrees-light.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="dark:hidden" />
-  <img src="/screenshots/worktrees-dark.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="hidden dark:block" />
-</Frame>
+<Steps titleSize="h4">
+  <Step title="Download" icon="download">
+    Get the `.dmg` from the [latest release](https://github.com/praveenjuge/devbar/releases/latest).
+  </Step>
+  <Step title="Open it" icon="app-window">
+    Drag Devbar to Applications and open it. It's signed and notarized.
+  </Step>
+  <Step title="Click the gauge" icon="mouse-pointer-click">
+    Find the icon in your menu bar. Your quota and dev servers are already there.
+  </Step>
+</Steps>
 
-<Callout type="tip" title="Private by design" icon="shield">
-  Devbar reads the logins you already have and never writes them back. No account, no analytics. [See what it reads](/privacy).
-</Callout>
+## Questions
+
+<Accordion>
+  <AccordionItem title="Do I need to sign in to anything?">
+    No. Devbar reuses the logins your Codex CLI, Claude Code, and Muse already saved, and only reads them.
+  </AccordionItem>
+  <AccordionItem title="Does it work on Intel Macs?">
+    Not yet. Releases are built for Apple Silicon and need macOS 14 or later.
+  </AccordionItem>
+  <AccordionItem title="Can deleting worktrees lose my work?">
+    Devbar always asks first, and it warns you when a worktree has uncommitted changes or is locked by an agent.
+  </AccordionItem>
+  <AccordionItem title="Does it collect any data?">
+    No. There's no account and no analytics. [See exactly what it reads](/privacy).
+  </AccordionItem>
+</Accordion>
+
+## Keep going
+
+<CardGroup cols={2}>
+  <Card title="Read the docs" href="/install" icon="book-open" cta="Start with Install">
+    How each feature works, what it needs, and what it reads.
+  </Card>
+  <Card title="View the source" href="https://github.com/praveenjuge/devbar" icon="github" cta="praveenjuge/devbar">
+    Built with Swift and AppKit. Read the code or build it yourself.
+  </Card>
+</CardGroup>
 
 </div>
