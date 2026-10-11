@@ -1,4 +1,5 @@
 import AppKit
+import QuickLook
 import SwiftUI
 
 /// Worktrees found on this Mac. Scans only while the window is open.
@@ -10,15 +11,6 @@ final class WorktreeStore {
     private(set) var hasScanned = false
     private(set) var deleting: Set<String> = []
     var failure: String?
-
-    /// Repositories by name, most recently used worktrees first.
-    var groups: [(repository: String, worktrees: [Worktree])] {
-        Dictionary(grouping: worktrees, by: \.repository)
-            .map { ($0.key, $0.value.sorted { $0.lastActive > $1.lastActive }) }
-            .sorted { $0.repository.localizedStandardCompare($1.repository) == .orderedAscending }
-    }
-
-    var stale: [Worktree] { worktrees.filter(\.isStale) }
 
     func scan() async {
         guard !isScanning else { return }
@@ -47,20 +39,95 @@ final class WorktreeStore {
     }
 }
 
+enum WorktreeFilter: String, CaseIterable, Identifiable {
+    case all = "All", merged = "Merged", changes = "Has Changes", stale = "Stale"
+
+    var id: Self { self }
+
+    func includes(_ worktree: Worktree) -> Bool {
+        switch self {
+        case .all: true
+        case .merged: worktree.isMerged
+        case .changes: worktree.hasChanges
+        case .stale: worktree.isStale
+        }
+    }
+
+    var emptyTitle: String {
+        switch self {
+        case .all: "No Worktrees"
+        case .merged: "No Merged Worktrees"
+        case .changes: "No Worktrees with Changes"
+        case .stale: "No Stale Worktrees"
+        }
+    }
+}
+
+enum WorktreeSort: String, CaseIterable, Identifiable {
+    case recent = "Recently Used", name = "Name"
+
+    var id: Self { self }
+}
+
+/// Quick picks in the Select menu. Locked worktrees are never picked:
+/// Claude Code locks its own while an agent is still running in it.
+enum WorktreePick: CaseIterable, Identifiable {
+    case merged, clean, missing, agents, olderThanDay, olderThanWeek, olderThanMonth
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .merged: "Merged"
+        case .clean: "No Changes"
+        case .missing: "Missing Folders"
+        case .agents: "Agent Worktrees"
+        case .olderThanDay: "Older Than a Day"
+        case .olderThanWeek: "Older Than a Week"
+        case .olderThanMonth: "Older Than a Month"
+        }
+    }
+
+    func matches(_ worktree: Worktree) -> Bool {
+        guard !worktree.isLocked else { return false }
+        return switch self {
+        case .merged: worktree.isMerged
+        case .clean: !worktree.hasChanges
+        case .missing: worktree.isMissing
+        case .agents: worktree.isAgent
+        case .olderThanDay: worktree.lastActive < Date(timeIntervalSinceNow: -86400)
+        case .olderThanWeek: worktree.lastActive < Date(timeIntervalSinceNow: -Worktree.staleAge)
+        case .olderThanMonth: worktree.lastActive < Date(timeIntervalSinceNow: -30 * 86400)
+        }
+    }
+}
+
 struct WorktreesView: View {
     let store: WorktreeStore
+    @State private var selection: Set<Worktree.ID> = []
+    @State private var filter = WorktreeFilter.all
     @State private var pendingDelete: [Worktree] = []
+    @State private var previewURL: URL?
     @AppStorage("worktrees.deleteMergedBranches") private var deleteMergedBranches = true
+    @AppStorage("worktrees.sort") private var sort = WorktreeSort.recent
+    /// Collapsed repository names, one per line.
+    @AppStorage("worktrees.collapsedRepositories") private var collapsedNames = ""
 
     var body: some View {
         content
-            .frame(minWidth: 460, idealWidth: 500, minHeight: 280, idealHeight: 440)
+            .frame(minWidth: 480, idealWidth: 540, minHeight: 280, idealHeight: 440)
+            .safeAreaInset(edge: .top, spacing: 0) { toolbar }
             .safeAreaInset(edge: .bottom, spacing: 0) { footer }
+            .quickLookPreview($previewURL)
+            .onChange(of: filter) { selection.formIntersection(displayed.map(\.id)) }
             .alert(deleteTitle, isPresented: confirming) {
                 Button("Delete", role: .destructive) {
                     let targets = pendingDelete
                     let deleteBranches = deleteMergedBranches
-                    Task { await store.delete(targets, deleteMergedBranches: deleteBranches) }
+                    Task {
+                        await store.delete(targets, deleteMergedBranches: deleteBranches)
+                        selection.subtract(targets.map(\.id))
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
@@ -73,6 +140,52 @@ struct WorktreesView: View {
             }
     }
 
+    // MARK: - What's shown
+
+    /// Repositories by name, then worktrees in the chosen order.
+    private var groups: [(repository: String, worktrees: [Worktree])] {
+        Dictionary(grouping: store.worktrees.filter(filter.includes), by: \.repository)
+            .map { ($0.key, $0.value.sorted(by: sortOrder)) }
+            .sorted { $0.repository.localizedStandardCompare($1.repository) == .orderedAscending }
+    }
+
+    private func sortOrder(_ a: Worktree, _ b: Worktree) -> Bool {
+        switch sort {
+        case .recent: a.lastActive > b.lastActive
+        case .name: a.name.localizedStandardCompare(b.name) == .orderedAscending
+        }
+    }
+
+    private var collapsed: Set<String> { Set(collapsedNames.split(separator: "\n").map(String.init)) }
+
+    /// Rows on screen: matching the filter, in expanded sections. Picks and
+    /// deletes only ever act on these, so nothing hidden gets deleted.
+    private var displayed: [Worktree] {
+        groups.filter { !collapsed.contains($0.repository) }.flatMap(\.worktrees)
+    }
+
+    private var selected: [Worktree] {
+        displayed.filter { selection.contains($0.id) && !store.deleting.contains($0.id) }
+    }
+
+    private func isExpanded(_ repository: String) -> Binding<Bool> {
+        Binding(
+            get: { !collapsed.contains(repository) },
+            set: { expanded in
+                var names = collapsed
+                if expanded {
+                    names.remove(repository)
+                } else {
+                    names.insert(repository)
+                    selection.subtract(store.worktrees.filter { $0.repository == repository }.map(\.id))
+                }
+                collapsedNames = names.sorted().joined(separator: "\n")
+            }
+        )
+    }
+
+    // MARK: - Layout
+
     @ViewBuilder private var content: some View {
         if !store.hasScanned {
             ProgressView("Looking for worktrees…")
@@ -83,45 +196,151 @@ struct WorktreesView: View {
                 systemImage: "arrow.triangle.branch",
                 description: Text("Git worktrees in your home folder show up here.")
             )
+        } else if groups.isEmpty {
+            ContentUnavailableView(filter.emptyTitle, systemImage: "line.3.horizontal.decrease.circle")
         } else {
-            List {
-                ForEach(store.groups, id: \.repository) { group in
-                    Section(group.repository) {
+            list
+        }
+    }
+
+    private var list: some View {
+        List(selection: $selection) {
+            ForEach(groups, id: \.repository) { group in
+                let isExpanded = isExpanded(group.repository)
+                let merged = group.worktrees.filter(WorktreePick.merged.matches)
+                Section {
+                    if isExpanded.wrappedValue {
                         ForEach(group.worktrees) { worktree in
                             WorktreeRow(worktree: worktree, isDeleting: store.deleting.contains(worktree.id)) {
                                 pendingDelete = [worktree]
                             }
                         }
                     }
+                } header: {
+                    RepositoryHeader(
+                        repository: group.repository,
+                        count: group.worktrees.count,
+                        isExpanded: isExpanded,
+                        onSelectMerged: merged.isEmpty ? nil : { selection = Set(merged.map(\.id)) }
+                    )
                 }
             }
         }
+        .contextMenu(forSelectionType: Worktree.ID.self) { ids in
+            rowMenu(store.worktrees.filter { ids.contains($0.id) && !store.deleting.contains($0.id) })
+        }
+        .onDeleteCommand { deleteSelection() }
+        .onKeyPress(.space) { togglePreview() }
     }
 
-    private var footer: some View {
+    @ViewBuilder private func rowMenu(_ targets: [Worktree]) -> some View {
+        if !targets.isEmpty {
+            let folders = targets.filter { !$0.isMissing }.map { URL(fileURLWithPath: $0.path) }
+            Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting(folders) }
+                .disabled(folders.isEmpty)
+            Button(targets.count == 1 ? "Copy Path" : "Copy Paths") {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(targets.map(\.path).joined(separator: "\n"), forType: .string)
+            }
+            Divider()
+            Button(targets.count == 1 ? "Delete…" : "Delete \(targets.count) Worktrees…") { pendingDelete = targets }
+        }
+    }
+
+    private var toolbar: some View {
         HStack {
+            Picker("Show", selection: $filter) {
+                ForEach(WorktreeFilter.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help("Stale worktrees haven't been used in a week and aren't locked")
+            Spacer()
+            if store.isScanning && store.hasScanned {
+                ProgressView().controlSize(.small)
+            }
+            Menu {
+                Picker("Sort By", selection: $sort) {
+                    ForEach(WorktreeSort.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                Label("Sort", systemImage: "arrow.up.arrow.down")
+            }
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Sort by")
             Button {
                 Task { await store.scan() }
             } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
             .labelStyle(.iconOnly)
-            .help("Look for worktrees again")
+            .keyboardShortcut("r")
+            .help("Look for worktrees again (⌘R)")
             .disabled(store.isScanning)
-            if store.isScanning && store.hasScanned {
-                ProgressView().controlSize(.small)
-            }
-            Spacer()
+        }
+        .padding(10)
+        .background(.bar)
+        .overlay(alignment: .bottom) { Divider() }
+    }
+
+    private var footer: some View {
+        HStack {
             Toggle("Delete merged branches", isOn: $deleteMergedBranches)
                 .help("When deleting a worktree, also delete its branch if everything on it is already in the default branch")
-            Button("Delete Older Than a Week") { pendingDelete = store.stale }
-                .disabled(store.stale.isEmpty || store.isScanning)
-                .help("Locked worktrees are skipped")
+            Spacer()
+            selectMenu
+            Button(deleteLabel) { deleteSelection() }
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(selected.isEmpty)
+                .help("Delete the selected worktrees (⌘⌫)")
         }
         .padding(10)
         .background(.bar)
         .overlay(alignment: .top) { Divider() }
     }
+
+    private var selectMenu: some View {
+        Menu("Select") {
+            Button("All") { selection = Set(displayed.map(\.id)) }
+            Divider()
+            ForEach(WorktreePick.allCases) { pick in
+                Button(pick.title) { selection = Set(displayed.filter(pick.matches).map(\.id)) }
+                    .disabled(!displayed.contains(where: pick.matches))
+                if pick == .agents { Divider() }
+            }
+            Divider()
+            Button("None") { selection = [] }
+                .disabled(selection.isEmpty)
+        }
+        .fixedSize()
+        .disabled(displayed.isEmpty)
+        .help("Locked worktrees are never picked")
+    }
+
+    private var deleteLabel: String {
+        selected.count > 1 ? "Delete \(selected.count) Worktrees" : "Delete Worktree"
+    }
+
+    private func deleteSelection() {
+        guard !selected.isEmpty else { return }
+        pendingDelete = selected
+    }
+
+    /// Space opens Quick Look on the first selected folder, and closes it.
+    private func togglePreview() -> KeyPress.Result {
+        if previewURL != nil {
+            previewURL = nil
+            return .handled
+        }
+        guard let worktree = selected.first(where: { !$0.isMissing }) else { return .ignored }
+        previewURL = URL(fileURLWithPath: worktree.path)
+        return .handled
+    }
+
+    // MARK: - Confirming
 
     private var confirming: Binding<Bool> {
         Binding(get: { !pendingDelete.isEmpty }, set: { if !$0 { pendingDelete = [] } })
@@ -135,7 +354,7 @@ struct WorktreesView: View {
         if pendingDelete.count == 1, let worktree = pendingDelete.first {
             return "Delete \u{201C}\(worktree.name)\u{201D}?"
         }
-        return "Delete \(pendingDelete.count) worktrees not used in the last week?"
+        return "Delete \(pendingDelete.count) worktrees?"
     }
 
     /// What happens to branches, so nobody is surprised a branch is gone.
@@ -162,10 +381,53 @@ struct WorktreesView: View {
         } else if changed > 0 {
             lines.append("\(changed) of them \(changed == 1 ? "has" : "have") uncommitted changes, which will be lost.")
         }
-        if single, pendingDelete[0].isLocked {
+        let locked = pendingDelete.filter(\.isLocked).count
+        if single, locked == 1 {
             lines.append("It's locked, so an app may still be using it.")
+        } else if locked > 0 {
+            lines.append("\(locked) of them \(locked == 1 ? "is" : "are") locked, so an app may still be using \(locked == 1 ? "it" : "them").")
         }
         return lines.joined(separator: "\n\n")
+    }
+}
+
+/// Collapsing is drawn here rather than left to the list, which only
+/// shows its disclosure arrow on hover.
+private struct RepositoryHeader: View {
+    let repository: String
+    let count: Int
+    @Binding var isExpanded: Bool
+    let onSelectMerged: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .frame(width: 10)
+                    Text(repository)
+                    Text(count, format: .number)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(repository), \(count) worktrees")
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .help(isExpanded ? "Collapse" : "Expand")
+            Spacer()
+            if let onSelectMerged {
+                Button("Select Merged", action: onSelectMerged)
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                    .help("Select this repository's merged worktrees")
+            }
+        }
     }
 }
 
@@ -173,6 +435,7 @@ private struct WorktreeRow: View {
     let worktree: Worktree
     let isDeleting: Bool
     let onDelete: () -> Void
+    @State private var isHovering = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -186,50 +449,84 @@ private struct WorktreeRow: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .help(worktree.path)
-            Spacer()
-            if worktree.isLocked {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.secondary)
-                    .help("Locked: an app may be using it")
-                    .accessibilityLabel("Locked")
+            .help("\(worktree.branch ?? "Detached HEAD")\n\(worktree.path)")
+            Spacer(minLength: 8)
+            if worktree.isMerged {
+                StatusPill(title: "Merged", color: .green)
+                    .help("Everything on its branch is already in the default branch")
             }
             if worktree.hasChanges {
-                Image(systemName: "pencil.circle.fill")
-                    .foregroundStyle(.orange)
+                StatusPill(title: worktree.changedFiles == 1 ? "1 change" : "\(worktree.changedFiles) changes", color: .orange)
                     .help("Uncommitted changes")
-                    .accessibilityLabel("Uncommitted changes")
             }
-            if isDeleting {
-                ProgressView().controlSize(.small)
-            } else {
-                Button(action: onDelete) {
-                    Label("Delete", systemImage: "trash")
+            if worktree.isLocked {
+                StatusPill(title: "Locked", color: .secondary)
+                    .help("An app may be using it")
+            }
+            if worktree.isMissing {
+                StatusPill(title: "Missing", color: .red)
+                    .help("The folder is gone, so deleting only clears git's record of it")
+            }
+            // Space stays reserved so pills don't shift when the button shows.
+            ZStack {
+                if isDeleting {
+                    ProgressView().controlSize(.small)
+                } else if isHovering {
+                    Button(action: onDelete) {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Delete worktree")
                 }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.borderless)
-                .help("Delete worktree")
             }
+            .frame(width: 18)
         }
         .padding(.vertical, 2)
-        .contextMenu {
-            Button("Show in Finder") {
-                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: worktree.path)])
-            }
-            .disabled(worktree.isMissing)
-            Button("Copy Path") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(worktree.path, forType: .string)
-            }
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
+        .swipeActions(edge: .trailing) {
+            Button("Delete", systemImage: "trash", action: onDelete)
+                .tint(.red)
         }
+        .accessibilityAction(named: "Delete", onDelete)
     }
 
+    /// The branch only when the folder name doesn't already say it: git
+    /// names a new branch after its folder, and Claude Code adds `claude/`
+    /// or `worktree-` in front.
     private var detail: String {
-        var branch = worktree.branch ?? "detached"
-        if worktree.isMerged { branch += " · merged" }
-        if worktree.isMissing { return "\(branch) · Folder missing" }
-        let age = worktree.lastActive.formatted(.relative(presentation: .named))
-        return "\(branch) · \(age)"
+        var parts: [String] = []
+        if let branch = worktree.branch {
+            let last = (branch as NSString).lastPathComponent
+            if last != worktree.name, last != "worktree-" + worktree.name { parts.append(branch) }
+        } else {
+            parts.append("Detached")
+        }
+        if worktree.lastActive > .distantPast {
+            parts.append(worktree.lastActive.formatted(.relative(presentation: .named)))
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+private struct StatusPill: View {
+    let title: String
+    let color: Color
+    /// Selected rows get an accent background, where colored text is hard to read.
+    @Environment(\.backgroundProminence) private var prominence
+
+    var body: some View {
+        let tint = prominence == .increased ? Color.white : color
+        Text(title)
+            .font(.caption)
+            .fontWeight(.medium)
+            .lineLimit(1)
+            .fixedSize()
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(tint.opacity(0.15), in: Capsule())
     }
 }
 
@@ -255,7 +552,7 @@ final class WorktreesWindow {
         window.title = "Worktrees"
         window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 500, height: 440))
+        window.setContentSize(NSSize(width: 540, height: 480))
         // Open on the Space the menu was used from, even over a full-screen app.
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         window.center()

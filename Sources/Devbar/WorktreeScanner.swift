@@ -11,7 +11,8 @@ struct Worktree: Identifiable, Sendable, Hashable {
     var isLocked: Bool
     /// The folder is gone; deleting only drops git's record of it.
     var isMissing: Bool
-    var hasChanges: Bool
+    /// Changed and untracked paths, as `git status` lists them.
+    var changedFiles: Int
     /// Everything on the branch is already in the default branch, so
     /// deleting it loses nothing.
     var isMerged: Bool
@@ -21,6 +22,14 @@ struct Worktree: Identifiable, Sendable, Hashable {
 
     var id: String { path }
     var name: String { (path as NSString).lastPathComponent }
+    var hasChanges: Bool { changedFiles > 0 }
+
+    /// Claude Code names a subagent's worktree `agent-<hex id>`.
+    var isAgent: Bool {
+        guard name.hasPrefix("agent-") else { return false }
+        let id = name.dropFirst("agent-".count)
+        return id.count >= 8 && id.allSatisfy(\.isHexDigit)
+    }
 
     static let staleAge: TimeInterval = 7 * 86400
 
@@ -162,7 +171,7 @@ enum WorktreeScanner {
                 if field == "prunable" || field.hasPrefix("prunable ") { isMissing = true }
             }
             guard let path, !record.contains("bare") else { continue }
-            let hasChanges = isMissing ? false : await isDirty(path)
+            let changedFiles = isMissing ? 0 : await changeCount(path)
             let isMerged = if let branch { await isMerged(branch, into: mergeTargets, in: commonDirectory) } else { false }
             worktrees.append(Worktree(
                 path: path,
@@ -171,7 +180,7 @@ enum WorktreeScanner {
                 branch: branch,
                 isLocked: isLocked,
                 isMissing: isMissing,
-                hasChanges: hasChanges,
+                changedFiles: changedFiles,
                 isMerged: isMerged,
                 mergeTargets: mergeTargets,
                 lastActive: lastActive(path: path, admin: adminDirectories[path], isMissing: isMissing)
@@ -205,11 +214,12 @@ enum WorktreeScanner {
         return dates.max() ?? .distantPast
     }
 
-    /// Tracked edits or untracked files. Optional locks stay off so checking
-    /// never rewrites the index, which would count as activity.
-    private static func isDirty(_ path: String) async -> Bool {
+    /// Tracked edits and untracked files, one line each (porcelain quotes
+    /// paths with newlines). Optional locks stay off so checking never
+    /// rewrites the index, which would count as activity.
+    private static func changeCount(_ path: String) async -> Int {
         let result = await git(["-C", path, "status", "--porcelain"], in: nil)
-        return result.status == 0 && !result.output.isEmpty
+        return result.status == 0 ? result.output.split(separator: "\n").count : 0
     }
 
     // MARK: - Merged branches
