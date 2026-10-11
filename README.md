@@ -1,10 +1,23 @@
 # Devbar
 
-Native macOS menu-bar app for developers: remaining AI quota for Codex, Claude, and Muse Code, the dev servers running on your Mac, a Worktrees window for cleaning up git worktrees, a Caffeinate toggle, and a Camera menu for revoking apps' camera access. Icon-only in the menu bar; click for a native menu.
+A native macOS menu-bar app for developers: remaining AI quota for Codex, Claude, and Muse, the dev servers running on your Mac, a Worktrees window for cleaning up git worktrees, a Caffeinate toggle, and a Camera menu for revoking apps' camera access. Icon-only in the menu bar; click for a native menu.
+
+**[Website and docs](https://devbar.praveenjuge.com)** · **[Download](https://github.com/praveenjuge/devbar/releases/latest)**
+
+## Features
+
+| Feature | Docs |
+|---|---|
+| AI quota for Codex, Claude, and Muse | [AI quota](https://devbar.praveenjuge.com/features/ai-quota) |
+| Dev servers listening on your Mac | [Dev servers](https://devbar.praveenjuge.com/features/dev-servers) |
+| Worktrees window for cleaning up git worktrees | [Worktrees](https://devbar.praveenjuge.com/features/worktrees) |
+| Camera menu for revoking camera access | [Camera](https://devbar.praveenjuge.com/features/camera) |
+| Caffeinate toggle | [Caffeinate](https://devbar.praveenjuge.com/features/caffeinate) |
+| Settings, updates, and privacy | [Settings](https://devbar.praveenjuge.com/settings) · [Updates](https://devbar.praveenjuge.com/updates) · [Privacy](https://devbar.praveenjuge.com/privacy) |
 
 ## Requirements
 
-- macOS 14+
+- Apple Silicon Mac with macOS 14+
 - Existing logins: Codex CLI (`~/.codex/auth.json`), Claude Code (Keychain), Muse (`~/.config/muse/auth.json` or Keychain)
 
 ## Build & run
@@ -31,30 +44,11 @@ Set `CODESIGN_IDENTITY` to override the Developer ID signing identity used by `b
 - Keychain is read via the `/usr/bin/security` subprocess (stable attribution, so one Always Allow sticks), blobs are cached in memory, and background refreshes never prompt.
 - Refreshes every 10 minutes and whenever the menu opens. Transient failures (network, 429, 5xx) keep last-good data; durable ones (logout, expired) replace it.
 - Menu rows are stock `NSMenuItem`s: section headers per provider (plan and masked sign-in email, or **Idle** when no quota is in use), quota rows with the remaining percentage and reset time as one badge. Each quota bar is a native `NSLevelIndicator` inside a resizing menu view, inset to align with the menu text; AppKit colors it (yellow under 25%, red under 10%).
-
-## Dev Servers
-
-The menu lists TCP ports that dev servers are listening on (`lsof -nP -iTCP -sTCP:LISTEN`), scanned each time the menu opens. A listener counts as a dev server when its process was started from a project folder: system services and apps, which launchd starts in `/` or inside their app bundle, are left out. Each row shows `localhost:<port>` with the project folder and process name; its submenu opens it in the browser, copies the URL or PID, hides that process name, or stops the process (`SIGTERM`, or `SIGKILL` as Force Stop while holding ⌥).
-
-## Camera
-
-**Camera** in the menu lists the apps in Privacy & Security → Camera, checked while they're allowed. Click an allowed app to revoke it (`tccutil reset Camera <bundle id>`); the app asks again the next time it uses the camera, and allowing that prompt turns it back on. macOS has no public way for another app to grant camera access, so that prompt or System Settings is the only way back on. An app you've denied opens Camera settings when clicked.
-
-A reset removes the app from macOS's list, so Devbar remembers every app it has seen (`camera.knownApps`) and keeps showing it as *Asks next time*; clicking it opens the app. Reading the decisions means opening `~/Library/Application Support/com.apple.TCC/TCC.db` read-only, which needs Full Disk Access; until it's granted the submenu links to that setting. The database is never written.
-
-## Worktrees
-
-**Worktrees…** in the menu opens a small window listing every linked git worktree in your home folder, grouped by repository. It scans only while the window is open, and again each time you open it. Spotlight doesn't index `.git`, so the scan walks the home folder for repositories (skipping `~/Library`, hidden folders, and build/dependency folders), then runs `git worktree list --porcelain` for each one. A worktree inside a hidden folder like `.claude/worktrees` is still found through its repository.
-
-Each row shows when the worktree was last used: the newest of its folder and git's `HEAD`, `index`, and `logs/HEAD` for it. The branch is shown too unless the folder name already says it (`claude/<folder>` or `worktree-<folder>`). Checking for uncommitted changes runs `git status` with optional locks off, so the scan itself never counts as use. Pills mark rows that are **Merged**, have uncommitted changes (with a count), are **Locked** (Claude Code locks worktrees while an agent runs), or are **Missing** their folder.
-
-The bar on top filters to All, Merged, Has Changes, or Stale (unused for 7 days and not locked), sorts by recent use or name (`worktrees.sort`), and refreshes (⌘R). Repository sections collapse from their header, which is remembered (`worktrees.collapsedRepositories`).
-
-Rows select like any macOS list: click, ⌘-click, ⇧-click, or ⌘A. **Select** picks Merged, No Changes, Missing Folders, Agent Worktrees (Claude Code's `agent-<id>` folders), or ones older than a day, week, or month; each repository header has **Select Merged**. Picks never include locked worktrees, and selecting, ⌘A, and deleting only act on rows on screen, so nothing in a collapsed section or hidden by the filter is touched. Space opens Quick Look on the selected folder. The trash button shows on hover, rows also swipe to delete, and right-clicking offers Show in Finder, Copy Path, and Delete for the whole selection.
-
-A branch is **merged** when merging it into the default branch would change nothing (`git merge-tree --write-tree` gives the default branch's own tree). That covers regular, rebase, and squash merges, and branches with no commits of their own. The default branch is the main checkout's branch and `origin/HEAD`, so a branch merged on the remote counts even when the local branch is behind.
-
-Delete runs `git worktree remove --force --force`, which deletes the folder with any uncommitted changes and drops git's record of it. With **Delete merged branches** on (the default, stored as `worktrees.deleteMergedBranches`), a merged branch is checked again and deleted with `git branch -D`; other branches are always kept. **Delete** in the footer (or Delete, ⌘⌫) does this for the selection. It always asks first and says which branches go, when uncommitted changes will be lost, and when a worktree is locked.
+- **Dev servers** come from `lsof -nP -iTCP -sTCP:LISTEN` each time the menu opens. A listener counts when its process was started from a project folder; launchd starts system services and apps in `/` or inside their bundle, so they're left out. Stop sends `SIGTERM`, Force Stop (⌥) sends `SIGKILL`.
+- **Camera** reads `~/Library/Application Support/com.apple.TCC/TCC.db` read-only (needs Full Disk Access) and revokes with `tccutil reset Camera <bundle id>`. macOS has no public API to grant access. Apps seen once are remembered in `camera.knownApps` so they still show after a reset.
+- **Worktrees** scan only while the window is open: walk the home folder for repositories (skipping `~/Library`, hidden folders, and build/dependency folders; Spotlight doesn't index `.git`), then `git worktree list --porcelain` per repository. Last used is the newest of the folder and git's `HEAD`, `index`, and `logs/HEAD` for it; `git status` runs with optional locks off so the scan never counts as use. A branch is merged when `git merge-tree --write-tree` against the default branch (the main checkout's branch and `origin/HEAD`) gives the default branch's own tree, which covers regular, rebase, and squash merges. Delete runs `git worktree remove --force --force`, then `git branch -D` for merged branches when `worktrees.deleteMergedBranches` is on.
+- **Caffeinate** holds a `PreventUserIdleDisplaySleep` power assertion, like `caffeinate -d`.
+- Preferences live in `UserDefaults`: `provider.<id>.enabled`, `devServers.enabled`, `devServers.hidden`, `keychainApproved`, `camera.knownApps`, `worktrees.sort`, `worktrees.collapsedRepositories`, `worktrees.deleteMergedBranches`.
 
 ## Releases
 
@@ -70,6 +64,7 @@ CI needs these repository secrets (`gh secret set NAME --repo praveenjuge/devbar
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password from appleid.apple.com |
 | `APPLE_INSTALLER_CERTIFICATE_P12_BASE64` | (Optional) Base64 of a Developer ID Installer `.p12` — without it the PKG ships unsigned |
 | `APPLE_INSTALLER_CERTIFICATE_PASSWORD` | (Optional) Its export password — defaults to the app cert password |
+| `SPARKLE_PRIVATE_KEY` | Sparkle update signing key (see [Automatic updates](#automatic-updates)) |
 
 ```sh
 base64 -i /path/to/dev-id-app.p12 | gh secret set APPLE_DEVELOPER_CERTIFICATE_P12_BASE64
@@ -77,23 +72,6 @@ gh secret set APPLE_DEVELOPER_CERTIFICATE_PASSWORD   # paste .p12 password
 gh secret set APPLE_ID                               # paste Apple ID email
 gh secret set APPLE_APP_SPECIFIC_PASSWORD            # paste app-specific password
 ```
-
-## Website
-
-[devbar.praveenjuge.com](https://devbar.praveenjuge.com) is a [Blume](https://useblume.dev) docs site in `website/`, served as a static-assets Cloudflare Worker (`devbar`). Pages are Markdown in `website/docs/`; screenshots live in `website/public/screenshots/`.
-
-```sh
-cd website
-bun install
-bun run dev      # local preview
-bun run deploy   # blume build && cf deploy (manual deploy)
-```
-
-Cloudflare Workers Builds deploys it on every push to `main` that touches `website/`: root directory `/website`, build command `bun run build`, deploy command `bunx cf deploy`, and `BUN_VERSION` set to match `bun.lock`. `cloudflare.config.ts` sets the Worker name and custom domain; `wrangler.config.ts` points `cf` at Blume's `dist/`.
-
-## Settings
-
-Provider toggles, Show dev servers (with a list of hidden processes to restore), launch at login (`SMAppService`, with a link to Login Items when macOS needs approval), the app version with Check for updates, and Quit. Preferences are stored via `UserDefaults` (`provider.<id>.enabled`, `devServers.enabled`, `devServers.hidden`, `keychainApproved`, `camera.knownApps`).
 
 ## Automatic updates
 
@@ -152,3 +130,16 @@ bash scripts/verify-menu-feedback.sh dist/e2e-source/Devbar.app
 The signed test host opens the menu, asserts it stays open while the refresh
 rebuilds it, then checks for updates and asserts an up-to-date result leaves the
 menu unchanged. Results are retained.
+
+## Website
+
+[devbar.praveenjuge.com](https://devbar.praveenjuge.com) is a [Blume](https://useblume.dev) docs site in `website/`, served as a static-assets Cloudflare Worker (`devbar`). Pages are MDX in `website/docs/`; screenshots live in `website/public/screenshots/`.
+
+```sh
+cd website
+bun install
+bun run dev      # local preview
+bun run deploy   # blume build && cf deploy (manual deploy)
+```
+
+Cloudflare Workers Builds deploys it on every push to `main` that touches `website/`: root directory `/website`, build command `bun run build`, deploy command `bunx cf deploy`, and the `BUN_VERSION` build variable set to match `bun.lock`. `cloudflare.config.ts` sets the Worker name and custom domain; `wrangler.config.ts` points `cf` at Blume's `dist/`.
