@@ -2,7 +2,7 @@ import AppKit
 
 /// Native status-item menu (Battery-menu style): provider sections with
 /// quota rows, running dev servers, then Refresh / Caffeinate / Camera /
-/// Worktrees / Settings / Quit. All rows are stock menu
+/// Worktrees / Skills / Settings / Quit. All rows are stock menu
 /// items: section headers, badged rows, plus native capacity indicators on
 /// their own lines. Rows stay one line each to keep the menu short.
 @MainActor
@@ -18,6 +18,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private var camera: CameraAccess.Scan?
     private let onCaffeinateChange: (Bool) -> Void
     private let onWorktrees: () -> Void
+    private let onSkills: () -> Void
     private let onSettings: () -> Void
     private let onQuit: () -> Void
 
@@ -26,6 +27,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         updater: UpdateController?,
         onCaffeinateChange: @escaping (Bool) -> Void,
         onWorktrees: @escaping () -> Void,
+        onSkills: @escaping () -> Void,
         onSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
@@ -33,6 +35,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         self.updater = updater
         self.onCaffeinateChange = onCaffeinateChange
         self.onWorktrees = onWorktrees
+        self.onSkills = onSkills
         self.onSettings = onSettings
         self.onQuit = onQuit
         super.init()
@@ -90,6 +93,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let worktrees = NSMenuItem(title: "Worktrees…", action: #selector(openWorktrees), keyEquivalent: "")
         worktrees.target = self
         renderedMenu.addItem(worktrees)
+        let skills = NSMenuItem(title: "Skills…", action: #selector(openSkills), keyEquivalent: "")
+        skills.target = self
+        renderedMenu.addItem(skills)
         let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
         renderedMenu.addItem(settings)
@@ -419,6 +425,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     @objc private func openWorktrees(_ sender: Any?) {
         onWorktrees()
+    }
+
+    @objc private func openSkills(_ sender: Any?) {
+        onSkills()
     }
 
     @objc private func openSettings(_ sender: Any?) {

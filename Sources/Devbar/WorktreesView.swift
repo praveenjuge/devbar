@@ -217,11 +217,16 @@ struct WorktreesView: View {
                         }
                     }
                 } header: {
-                    RepositoryHeader(
-                        repository: group.repository,
+                    CollapsibleHeader(
+                        title: group.repository,
                         count: group.worktrees.count,
+                        noun: "worktrees",
                         isExpanded: isExpanded,
-                        onSelectMerged: merged.isEmpty ? nil : { selection = Set(merged.map(\.id)) }
+                        action: merged.isEmpty ? nil : (
+                            "Select Merged",
+                            "Select this repository's merged worktrees",
+                            { selection = Set(merged.map(\.id)) }
+                        )
                     )
                 }
             }
@@ -391,46 +396,6 @@ struct WorktreesView: View {
     }
 }
 
-/// Collapsing is drawn here rather than left to the list, which only
-/// shows its disclosure arrow on hover.
-private struct RepositoryHeader: View {
-    let repository: String
-    let count: Int
-    @Binding var isExpanded: Bool
-    let onSelectMerged: (() -> Void)?
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Button {
-                withAnimation(.snappy(duration: 0.2)) { isExpanded.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .frame(width: 10)
-                    Text(repository)
-                    Text(count, format: .number)
-                        .foregroundStyle(.tertiary)
-                        .monospacedDigit()
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(repository), \(count) worktrees")
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-            .help(isExpanded ? "Collapse" : "Expand")
-            Spacer()
-            if let onSelectMerged {
-                Button("Select Merged", action: onSelectMerged)
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-                    .help("Select this repository's merged worktrees")
-            }
-        }
-    }
-}
-
 private struct WorktreeRow: View {
     let worktree: Worktree
     let isDeleting: Bool
@@ -507,26 +472,6 @@ private struct WorktreeRow: View {
             parts.append(worktree.lastActive.formatted(.relative(presentation: .named)))
         }
         return parts.joined(separator: " · ")
-    }
-}
-
-private struct StatusPill: View {
-    let title: String
-    let color: Color
-    /// Selected rows get an accent background, where colored text is hard to read.
-    @Environment(\.backgroundProminence) private var prominence
-
-    var body: some View {
-        let tint = prominence == .increased ? Color.white : color
-        Text(title)
-            .font(.caption)
-            .fontWeight(.medium)
-            .lineLimit(1)
-            .fixedSize()
-            .foregroundStyle(tint)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .background(tint.opacity(0.15), in: Capsule())
     }
 }
 
