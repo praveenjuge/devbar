@@ -1,6 +1,6 @@
 ---
 title: Devbar
-description: A native macOS menu-bar app for developers. AI quota, running dev servers, and git worktree cleanup, one click away.
+description: A native macOS menu-bar app for developers. AI quota, running dev servers, git worktree cleanup, and agent skills, one click away.
 mode: custom
 sidebar:
   hidden: true
@@ -13,7 +13,7 @@ sidebar:
 
 # Your dev tools, one click away in the menu bar
 
-AI quota, running dev servers, and git worktree cleanup in one small native app.
+AI quota, running dev servers, git worktree cleanup, and agent skills in one small native app.
 
 <div className="not-prose mt-8 flex flex-wrap justify-center gap-3">
   <a href="https://github.com/praveenjuge/devbar/releases/latest" className="devbar-button-primary rounded-blume bg-accent px-5 py-3 shadow-sm hover:opacity-90">Download for Mac</a>
@@ -25,14 +25,20 @@ AI quota, running dev servers, and git worktree cleanup in one small native app.
 <Tabs inline hash={false} sync={false}>
   <Tab title="Menu" icon="gauge">
     <Frame caption="Quota for every AI tool, the dev servers you're running, and quick actions.">
-      <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="dark:hidden" />
-      <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, and Settings items" className="hidden dark:block" />
+      <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, Skills, and Settings items" className="dark:hidden" />
+      <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu with Codex, Claude, and Muse quota bars, three dev servers, and the Caffeinate, Camera, Worktrees, Skills, and Settings items" className="hidden dark:block" />
     </Frame>
   </Tab>
   <Tab title="Worktrees" icon="git-branch">
     <Frame caption="Merged, changed, locked, and stale worktrees from every repo in your home folder.">
       <img src="/screenshots/worktrees-light.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="dark:hidden" />
       <img src="/screenshots/worktrees-dark.png" width="672" alt="The Worktrees window listing worktrees grouped by repository, with Merged, changes, and Locked pills" className="hidden dark:block" />
+    </Frame>
+  </Tab>
+  <Tab title="Skills" icon="sparkles">
+    <Frame caption="Every agent skill on your Mac, which agents load it, and the duplicates and issues to clean up.">
+      <img src="/screenshots/skills-light.png" width="672" alt="The Skills window listing skills grouped by folder, with Duplicate, lines, and Issues pills" className="dark:hidden" />
+      <img src="/screenshots/skills-dark.png" width="672" alt="The Skills window listing skills grouped by folder, with Duplicate, lines, and Issues pills" className="hidden dark:block" />
     </Frame>
   </Tab>
   <Tab title="Settings" icon="settings">
@@ -54,6 +60,9 @@ AI quota, running dev servers, and git worktree cleanup in one small native app.
   </Card>
   <Card title="Worktrees" href="/features/worktrees" icon="git-branch">
     Find merged and stale worktrees, then delete them safely.
+  </Card>
+  <Card title="Skills" href="/features/skills" icon="sparkles">
+    See which agents load each skill, and clean up duplicates.
   </Card>
   <Card title="Camera" href="/features/camera" icon="camera">
     Take camera access back from any app in one click.

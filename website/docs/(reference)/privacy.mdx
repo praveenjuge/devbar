@@ -23,5 +23,6 @@ Keychain items are read through the system's `security` tool and kept in memory 
 
 - **Dev servers** come from `lsof` on your Mac.
 - **Worktrees** come from scanning your home folder and running `git` locally, only while the Worktrees window is open.
+- **Skills** come from reading the agents' skill folders, such as `~/.claude/skills`, `~/.agents/skills`, and `~/.codex/skills`, plus `~/.claude/settings.json`, Claude Code's plugin records, and `~/.agents/.skill-lock.json`, only while the Skills window is open.
 - **Camera** reads macOS's camera permissions database read-only, and only with Full Disk Access.
 - **Updates** check the release feed on GitHub, without credentials or a system profile.

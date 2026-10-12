@@ -1,7 +1,7 @@
 import AppKit
 
-/// Plain AppKit entry point: the app is a status item plus the Worktrees
-/// and Settings windows, all AppKit-owned. SwiftUI's Settings scene only opens through
+/// Plain AppKit entry point: the app is a status item plus the Worktrees,
+/// Skills, and Settings windows, all AppKit-owned. SwiftUI's Settings scene only opens through
 /// SettingsLink/openSettings, which a status-item NSMenu can't reach.
 @main
 enum DevbarApp {
@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var refreshTimer: Timer?
     private let updater = UpdateController()
     private lazy var worktreesWindow = WorktreesWindow()
+    private lazy var skillsWindow = SkillsWindow()
     private lazy var settingsWindow = SettingsWindow(updater: UpdateController.isAvailable ? updater : nil)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -57,6 +58,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        if CommandLine.arguments.contains("--dump-skills") {
+            Task {
+                print(Dump.json(skills: await SkillScanner.scan()))
+                NSApp.terminate(nil)
+            }
+            return
+        }
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.imagePosition = .imageOnly
@@ -68,6 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updater: UpdateController.isAvailable ? updater : nil,
             onCaffeinateChange: { [weak self] in self?.updateIcon(caffeinated: $0) },
             onWorktrees: { [weak self] in self?.worktreesWindow.show() },
+            onSkills: { [weak self] in self?.skillsWindow.show() },
             onSettings: { [weak self] in self?.settingsWindow.show() },
             onQuit: { NSApp.terminate(nil) }
         )
@@ -149,6 +158,26 @@ enum Dump {
                 "path": $0.path, "repository": $0.repository, "branch": $0.branch as Any,
                 "locked": $0.isLocked, "missing": $0.isMissing, "changes": $0.hasChanges, "changed_files": $0.changedFiles, "merged": $0.isMerged,
                 "last_active": ISO8601DateFormatter().string(from: $0.lastActive), "stale": $0.isStale,
+            ]
+        }
+        let data = (try? JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys, .prettyPrinted])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    static func json(skills: [Skill]) -> String {
+        let rows: [[String: Any]] = skills.sorted { ($0.name, $0.path) < ($1.name, $1.path) }.map { skill in
+            let copies: Any = switch skill.copies {
+            case .none: NSNull()
+            case .same(let paths): ["same": true, "paths": paths]
+            case .different(let paths): ["same": false, "paths": paths]
+            }
+            return [
+                "name": skill.name, "path": skill.path, "links": skill.links, "location": skill.location,
+                "source": skill.source.title as Any, "agents": skill.agents.map(\.rawValue),
+                "lines": skill.lines, "tokens": skill.tokens,
+                "listing_tokens": Dictionary(uniqueKeysWithValues: skill.agents.map { ($0.rawValue, skill.listingTokens(for: $0)) }),
+                "issues": skill.issues, "long": skill.isLong, "broken_link": skill.isBrokenLink,
+                "copies": copies, "loaded_twice_by": skill.loadedTwiceBy.map(\.rawValue),
             ]
         }
         let data = (try? JSONSerialization.data(withJSONObject: rows, options: [.sortedKeys, .prettyPrinted])) ?? Data()

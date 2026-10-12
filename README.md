@@ -1,6 +1,6 @@
 # Devbar
 
-A native macOS menu-bar app for developers: remaining AI quota for Codex, Claude, and Muse, the dev servers running on your Mac, a Worktrees window for cleaning up git worktrees, a Caffeinate toggle, and a Camera menu for revoking apps' camera access. Icon-only in the menu bar; click for a native menu.
+A native macOS menu-bar app for developers: remaining AI quota for Codex, Claude, and Muse, the dev servers running on your Mac, a Worktrees window for cleaning up git worktrees, a Skills window for the agent skills installed on your Mac, a Caffeinate toggle, and a Camera menu for revoking apps' camera access. Icon-only in the menu bar; click for a native menu.
 
 **[Website and docs](https://devbar.praveenjuge.com)** · **[Download](https://github.com/praveenjuge/devbar/releases/latest)**
 
@@ -11,6 +11,7 @@ A native macOS menu-bar app for developers: remaining AI quota for Codex, Claude
 | AI quota for Codex, Claude, and Muse | [AI quota](https://devbar.praveenjuge.com/features/ai-quota) |
 | Dev servers listening on your Mac | [Dev servers](https://devbar.praveenjuge.com/features/dev-servers) |
 | Worktrees window for cleaning up git worktrees | [Worktrees](https://devbar.praveenjuge.com/features/worktrees) |
+| Skills window for agent skills and which agents load them | [Skills](https://devbar.praveenjuge.com/features/skills) |
 | Camera menu for revoking camera access | [Camera](https://devbar.praveenjuge.com/features/camera) |
 | Caffeinate toggle | [Caffeinate](https://devbar.praveenjuge.com/features/caffeinate) |
 | Settings, updates, and privacy | [Settings](https://devbar.praveenjuge.com/settings) · [Updates](https://devbar.praveenjuge.com/updates) · [Privacy](https://devbar.praveenjuge.com/privacy) |
@@ -27,6 +28,7 @@ swift build                                    # debug build
 .build/debug/Devbar --dump-usage              # headless JSON check
 .build/debug/Devbar --dump-ports              # detected dev servers as JSON
 .build/debug/Devbar --dump-worktrees          # git worktrees found in your home folder
+.build/debug/Devbar --dump-skills             # agent skills, which agents load them, and problems
 .build/debug/Devbar --dump-camera             # camera permissions (needs Full Disk Access)
 ./build-app.sh                                 # signed release bundle -> dist/Devbar.app
 open dist/Devbar.app
@@ -47,8 +49,9 @@ Set `CODESIGN_IDENTITY` to override the Developer ID signing identity used by `b
 - **Dev servers** come from `lsof -nP -iTCP -sTCP:LISTEN` each time the menu opens. A listener counts when its process was started from a project folder; launchd starts system services and apps in `/` or inside their bundle, so they're left out. Stop sends `SIGTERM`, Force Stop (⌥) sends `SIGKILL`.
 - **Camera** reads `~/Library/Application Support/com.apple.TCC/TCC.db` read-only (needs Full Disk Access) and revokes with `tccutil reset Camera <bundle id>`. macOS has no public API to grant access. Apps seen once are remembered in `camera.knownApps` so they still show after a reset.
 - **Worktrees** scan only while the window is open: walk the home folder for repositories (skipping `~/Library`, hidden folders, and build/dependency folders; Spotlight doesn't index `.git`), then `git worktree list --porcelain` per repository. Last used is the newest of the folder and git's `HEAD`, `index`, and `logs/HEAD` for it; `git status` runs with optional locks off so the scan never counts as use. A branch is merged when `git merge-tree --write-tree` against the default branch (the main checkout's branch and `origin/HEAD`) gives the default branch's own tree, which covers regular, rebase, and squash merges. Delete runs `git worktree remove --force --force`, then `git branch -D` for merged branches when `worktrees.deleteMergedBranches` is on.
+- **Skills** scan only while the window is open. Global skill folders and who reads them come from each agent's docs: `~/.claude/skills` (Claude Code, Cursor, OpenCode), `~/.agents/skills` (Codex, Cursor, Copilot, Gemini CLI, OpenCode), `~/.codex/skills` and its `.system` folder (Codex's deprecated but still-read location; Cursor too), `/etc/codex/skills`, and each agent's own folder. An agent counts as installed when its settings folder exists. Claude Code folders are scanned one level deep and skip `synced`; Codex folders are scanned up to four levels deep. Hidden folders are skipped. Symlinks resolve to one row per real folder. Claude Code's claude.ai skills (`~/.claude/skills/synced/<account>/`) and synced plugins come from the most recently synced account; marketplace plugins come from `installed_plugins.json` when `enabledPlugins` turns them on. `npx skills` installs are matched by name in `~/.agents/.skill-lock.json`. Same-named skills in different folders are compared by a SHA-256 of their files. Checks follow the Agent Skills spec. Move to Trash uses `FileManager.trashItem` for the skill's links, and for its folder only when the folder sits in a skill folder.
 - **Caffeinate** holds a `PreventUserIdleDisplaySleep` power assertion, like `caffeinate -d`.
-- Preferences live in `UserDefaults`: `provider.<id>.enabled`, `devServers.enabled`, `devServers.hidden`, `keychainApproved`, `camera.knownApps`, `worktrees.sort`, `worktrees.collapsedRepositories`, `worktrees.deleteMergedBranches`.
+- Preferences live in `UserDefaults`: `provider.<id>.enabled`, `devServers.enabled`, `devServers.hidden`, `keychainApproved`, `camera.knownApps`, `worktrees.sort`, `worktrees.collapsedRepositories`, `worktrees.deleteMergedBranches`, `skills.agent`, `skills.sort`, `skills.collapsedSections`.
 
 ## Releases
 
