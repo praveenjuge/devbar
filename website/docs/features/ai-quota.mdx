@@ -5,13 +5,18 @@ sidebar:
   icon: gauge
 ---
 
-The top of the menu has a section for each AI tool you use. Each section shows your plan and a masked sign-in email (like `he•••@example.com`), so you can tell accounts apart without showing the full address in a screenshot.
+The top of the menu has one row for each AI tool you use. The row shows the quota window that's closest to running out: its percentage left, its name, and when it resets, with a bar underneath. The bar turns yellow below 25% and red below 10%. A tool you haven't used lately shows **Idle**.
 
-Under the header, each quota window gets a bar and a badge with the percentage left and when it resets. The bar turns yellow below 25% and red below 10%. A tool you haven't used lately shows **Idle**.
+<Frame caption="One row per tool, showing the window that will run out first.">
+  <img src="/screenshots/menu-light.png" width="354" alt="The Devbar menu with quota rows and bars for Codex, Claude, and Muse" className="dark:hidden" />
+  <img src="/screenshots/menu-dark.png" width="354" alt="The Devbar menu with quota rows and bars for Codex, Claude, and Muse" className="hidden dark:block" />
+</Frame>
 
-<Frame caption="Quota bars for Codex and Claude.">
-  <img src="/screenshots/menu-light.png" width="429" alt="The Devbar menu showing Codex and Claude quota bars" className="dark:hidden" />
-  <img src="/screenshots/menu-dark.png" width="429" alt="The Devbar menu showing Codex and Claude quota bars" className="hidden dark:block" />
+Hover over a tool to see every window it has, each with its own bar. The submenu also shows your plan and a masked sign-in email (like `he•••@example.com`), so you can tell accounts apart without showing the full address in a screenshot.
+
+<Frame caption="Every Claude window, with the plan and account.">
+  <img src="/screenshots/menu-quota-light.png" width="381" alt="The Claude submenu with Session, Weekly, and Weekly · Sonnet quota bars" className="dark:hidden" />
+  <img src="/screenshots/menu-quota-dark.png" width="381" alt="The Claude submenu with Session, Weekly, and Weekly · Sonnet quota bars" className="hidden dark:block" />
 </Frame>
 
 ## Supported tools
@@ -26,9 +31,9 @@ If you've signed in to Claude Code from more than one place, such as the termina
 
 ## Refreshing
 
-Devbar refreshes every 10 minutes and whenever you open the menu. Choose **Refresh** (⌘R) to check right away; the item shows when the last refresh finished.
+Devbar refreshes every 10 minutes and whenever you open the menu. To check again while the menu is open, press ⌘R. Hold ⌥ while you click the menu bar icon to see **Refresh** with the time the last refresh finished.
 
-If a refresh fails for a moment, like a network blip or a rate limit, Devbar keeps showing the last numbers it had. If the login itself is gone or expired, the section says so and tells you how to sign in again, for example by running `claude`.
+If a refresh fails for a moment, like a network blip or a rate limit, Devbar keeps showing the last numbers it had. If the login itself is gone or expired, the tool's row says so and tells you how to sign in again, for example by running `claude`.
 
 ## Turning a tool off
 
