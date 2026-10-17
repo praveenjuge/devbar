@@ -5,7 +5,7 @@ sidebar:
   icon: server
 ---
 
-Below the quota, the menu lists every dev server running on your Mac. Each row shows `localhost:<port>`, with the project folder and the process name under it.
+Below the quota, the menu lists every dev server running on your Mac. Each row shows `localhost:<port>`, with the project folder and the process name under it. When nothing is running, the list doesn't appear.
 
 Devbar scans each time you open the menu, using `lsof` to find TCP ports that are listening. A port counts as a dev server when its process was started from a project folder. System services and apps start from `/` or from inside their app bundle, so they're left out.
 
@@ -14,7 +14,7 @@ Devbar scans each time you open the menu, using `lsof` to find TCP ports that ar
 Hover over a row to open its submenu:
 
 - **Open in Browser** opens `http://localhost:<port>`.
-- **Copy URL** and **Copy PID** copy those to the clipboard.
+- **Copy URL** copies the URL to the clipboard. Hold ⌥ to see **Copy PID** in its place.
 - **Hide** hides every process with that name, like `node`, from the list.
 - **Stop Process** sends `SIGTERM`, the polite way to ask a process to quit.
 - **Force Stop Process** sends `SIGKILL`. Hold ⌥ to see it.

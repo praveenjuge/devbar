@@ -57,6 +57,11 @@ enum ProviderState: Sendable {
         if case .transient = self { return true }
         return false
     }
+
+    var isKeychainDenied: Bool {
+        if case .keychainDenied = self { return true }
+        return false
+    }
 }
 
 struct ExtraRow: Sendable {

@@ -62,9 +62,21 @@ final class FeedbackTest: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if didOpen { fail("menu closed while refreshing") }
                 return
             }
-            guard status.menu.items.contains(where: { $0.title.hasPrefix("Refresh · Updated ") }) else { return }
+            guard let refresh = status.menu.items.first(where: { $0.title.hasPrefix("Refresh · Updated ") }) else { return }
+            guard refresh.isHidden, refresh.allowsKeyEquivalentWhenHidden, refresh.keyEquivalent == "r" else {
+                fail("Refresh should be hidden without ⌥ and keep ⌘R")
+                return
+            }
             guard status.menu.items.allSatisfy({ $0.view == nil }) else {
                 fail("action rows must be stock menu items")
+                return
+            }
+            guard !status.menu.items.contains(where: { $0.title == "No dev servers running" }) else {
+                fail("an empty dev server list should leave no row")
+                return
+            }
+            guard zip(status.menu.items, status.menu.items.dropFirst()).allSatisfy({ !($0.isSeparatorItem && $1.isSeparatorItem) }) else {
+                fail("empty groups must not leave double separators")
                 return
             }
             guard item("Check for updates…") == nil else {
@@ -72,7 +84,7 @@ final class FeedbackTest: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             print("PASS: Menu stays open while the refresh rebuilds it")
-            print("PASS: Refresh is one stock row with its update time in the title")
+            print("PASS: Refresh keeps its update time and ⌘R, hidden until ⌥")
             stage = 1
             status.menu.cancelTracking()
         case 1:

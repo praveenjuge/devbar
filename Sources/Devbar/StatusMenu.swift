@@ -1,10 +1,11 @@
 import AppKit
 
-/// Native status-item menu (Battery-menu style): provider sections with
-/// quota rows, running dev servers, then Refresh / Caffeinate / Camera /
-/// Worktrees / Skills / Settings / Quit. All rows are stock menu
-/// items: section headers, badged rows, plus native capacity indicators on
-/// their own lines. Rows stay one line each to keep the menu short.
+/// Native status-item menu (Battery-menu style): one summary row per
+/// provider with its tightest quota window (every window in its submenu),
+/// running dev servers, then Caffeinate / Camera, Worktrees / Skills /
+/// Settings, and Quit. All rows are stock menu items: badged rows, plus
+/// native capacity indicators on their own lines. ⌥-clicking the icon
+/// also shows Refresh with the last update time, like Wi-Fi's ⌥ menu.
 @MainActor
 final class StatusMenu: NSObject, NSMenuDelegate {
     let menu = NSMenu()
@@ -16,6 +17,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     private let caffeinate = Caffeinate()
     private var ports: [ListeningPort] = []
     private var camera: CameraAccess.Scan?
+    /// Set when the menu opens with ⌥ held; reveals the Refresh row.
+    private var showsDetails = false
     private let onCaffeinateChange: (Bool) -> Void
     private let onWorktrees: () -> Void
     private let onSkills: () -> Void
@@ -62,16 +65,20 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     func rebuild() {
         let previousItems = menu.items
         renderedMenu = NSMenu()
-        let enabled = ProviderID.allCases.filter { SettingsStore.isEnabled($0) }
-        for (index, id) in enabled.enumerated() {
-            if index > 0 { renderedMenu.addItem(.separator()) }
-            addSection(for: id)
+        for id in ProviderID.allCases where SettingsStore.isEnabled(id) {
+            addProvider(id)
         }
         if SettingsStore.showDevServers {
-            if !enabled.isEmpty { renderedMenu.addItem(.separator()) }
+            addSeparator()
             addPortsSection()
         }
-        renderedMenu.addItem(.separator())
+        addSeparator()
+        // Opening the menu already refreshes, so Refresh only shows with ⌥,
+        // or while a provider's Keychain message asks for it by name; ⌘R
+        // works either way.
+        let needsApproval = ProviderID.allCases.contains {
+            SettingsStore.isEnabled($0) && store.snapshot(for: $0)?.state.isKeychainDenied == true
+        }
         var refreshTitle = "Refresh"
         if store.isRefreshing {
             refreshTitle = "Refreshing…"
@@ -81,6 +88,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let refresh = NSMenuItem(title: refreshTitle, action: #selector(refreshNow), keyEquivalent: "r")
         refresh.target = self
         refresh.isEnabled = !store.isRefreshing
+        refresh.isHidden = !(showsDetails || needsApproval)
+        refresh.allowsKeyEquivalentWhenHidden = true
         refreshItem = refresh
         renderedMenu.addItem(refresh)
         let caffeinateItem = NSMenuItem(title: "Caffeinate", action: #selector(toggleCaffeinate), keyEquivalent: "")
@@ -90,6 +99,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let cameraItem = NSMenuItem(title: "Camera", action: nil, keyEquivalent: "")
         cameraItem.submenu = cameraMenu()
         renderedMenu.addItem(cameraItem)
+        addSeparator()
         let worktrees = NSMenuItem(title: "Worktrees…", action: #selector(openWorktrees), keyEquivalent: "")
         worktrees.target = self
         renderedMenu.addItem(worktrees)
@@ -122,7 +132,15 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         for item in previousItems { menu.removeItem(item) }
     }
 
+    /// Separators go between groups only, so an empty group (no dev
+    /// servers, no providers) never leaves two in a row.
+    private func addSeparator() {
+        guard let last = renderedMenu.items.last, !last.isSeparatorItem else { return }
+        renderedMenu.addItem(.separator())
+    }
+
     func menuWillOpen(_ menu: NSMenu) {
+        showsDetails = NSEvent.modifierFlags.contains(.option)
         rebuild()
         Task {
             await refreshPorts()
@@ -136,6 +154,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             await store.refresh(userInitiated: true)
             self.rebuild()
         }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        showsDetails = false
     }
 
     func updateUpdateItem() {
@@ -153,39 +175,64 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     // MARK: - Sections
 
-    private func addSection(for id: ProviderID) {
-        let snap = store.snapshot(for: id)
-        let message = snap?.state.message
-        var rows: [(label: String, window: UsageWindow)] = []
-        if let snap, message == nil {
-            rows = [("Session", snap.session), ("Weekly", snap.weekly)]
-                + snap.extraRows.map { ($0.label, $0.window) }
-            rows.removeAll { $0.window.remainingPercent == nil }
+    /// One row per provider: its name, the window closest to running out
+    /// (label and reset time as the subtitle, percentage as the badge), and
+    /// that window's bar. The submenu holds the plan, the masked account,
+    /// and every window. Loading, idle, and error states fill the subtitle.
+    private func addProvider(_ id: ProviderID) {
+        guard let snap = store.snapshot(for: id) else {
+            return addStatusRow(id.displayName, detail: "Loading…")
         }
-        // An idle provider says so in its header instead of a row of its own.
-        let idle = snap != nil && message == nil && rows.isEmpty
-        renderedMenu.addItem(.sectionHeader(title: headerText(for: id, snap: snap, idle: idle)))
-        if let message {
-            renderedMenu.addItem(info(message, dimmed: true))
-        } else if snap == nil {
-            renderedMenu.addItem(info("Loading…", dimmed: true))
+        if let message = snap.state.message {
+            return addStatusRow(id.displayName, detail: message)
         }
-        for row in rows {
-            addRow(label: row.label, window: row.window)
+        let windows = ([("Session", snap.session), ("Weekly", snap.weekly)]
+            + snap.extraRows.map { ($0.label, $0.window) })
+            .compactMap { label, window in window.remainingPercent.map { (label: label, window: window, remaining: $0) } }
+        let details = NSMenu()
+        details.autoenablesItems = false
+        details.minimumWidth = Self.minimumWidth
+        if let account = accountText(for: snap) {
+            details.addItem(.sectionHeader(title: account))
         }
+        for window in windows {
+            let row = info(window.label)
+            row.badge = NSMenuItemBadge(string: [percentText(window.remaining), resetText(window.window.resetsAt)]
+                .compactMap { $0 }.joined(separator: " · "))
+            details.addItem(row)
+            details.addItem(barItem(remaining: window.remaining, label: window.label))
+        }
+        // min(by:) keeps the first of equal windows, so Session wins ties.
+        guard let tightest = windows.min(by: { $0.remaining < $1.remaining }) else {
+            // An idle provider still lists its plan and account.
+            let row = info(id.displayName)
+            setDetail("Idle", on: row)
+            if !details.items.isEmpty { row.submenu = details }
+            return renderedMenu.addItem(row)
+        }
+        let row = NSMenuItem(title: id.displayName, action: nil, keyEquivalent: "")
+        setDetail([tightest.label, resetPhrase(tightest.window.resetsAt)].compactMap { $0 }.joined(separator: " · "), on: row)
+        row.badge = NSMenuItemBadge(string: percentText(tightest.remaining))
+        row.submenu = details
+        renderedMenu.addItem(row)
+        renderedMenu.addItem(barItem(remaining: tightest.remaining, label: "\(id.displayName) \(tightest.label)"))
     }
 
-    /// One quota row: label with the remaining percentage and reset time
-    /// as a badge, plus a draining bar on its own line below.
-    private func addRow(label: String, window: UsageWindow) {
-        guard let remaining = window.remainingPercent else { return }
-        let row = info(label)
-        let percent = (remaining / 100).formatted(.percent.precision(.fractionLength(0)))
-        row.badge = NSMenuItemBadge(string: [percent, resetText(window.resetsAt)].compactMap { $0 }.joined(separator: " · "))
+    private func addStatusRow(_ title: String, detail: String) {
+        let row = info(title, dimmed: true)
+        setDetail(detail, on: row)
         renderedMenu.addItem(row)
-        let barItem = NSMenuItem()
-        barItem.view = BarView(remaining: remaining, label: label)
-        renderedMenu.addItem(barItem)
+    }
+
+    /// A draining bar on its own line, below the row it belongs to.
+    private func barItem(remaining: Double, label: String) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.view = BarView(remaining: remaining, label: label)
+        return item
+    }
+
+    private func percentText(_ remaining: Double) -> String {
+        (remaining / 100).formatted(.percent.precision(.fractionLength(0)))
     }
 
     // MARK: - Dev servers
@@ -198,11 +245,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         ports = await PortScanner.scan(hidden: Set(SettingsStore.hiddenProcesses))
     }
 
-    /// No section header: `localhost:<port>` rows explain themselves.
+    /// No section header: `localhost:<port>` rows explain themselves. With
+    /// nothing running the section is left out entirely.
     private func addPortsSection() {
-        if ports.isEmpty {
-            renderedMenu.addItem(info("No dev servers running", dimmed: true))
-        }
         for port in ports {
             let row = NSMenuItem(title: "localhost:\(port.port)", action: nil, keyEquivalent: "")
             setDetail("\(port.project) · \(port.process)", on: row)
@@ -215,7 +260,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.addItem(portAction("Open in Browser", #selector(openPort), port))
         menu.addItem(portAction("Copy URL", #selector(copyURL), port))
-        menu.addItem(portAction("Copy PID", #selector(copyPID), port))
+        // Holding Option swaps in the rarer Copy PID.
+        let copyPID = portAction("Copy PID", #selector(copyPID), port)
+        copyPID.keyEquivalentModifierMask = .option
+        copyPID.isAlternate = true
+        menu.addItem(copyPID)
         menu.addItem(.separator())
         menu.addItem(portAction("Hide \u{201C}\(port.process)\u{201D}", #selector(hideProcess), port))
         menu.addItem(.separator())
@@ -287,12 +336,11 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         return item
     }
 
-    private func headerText(for id: ProviderID, snap: ProviderSnapshot?, idle: Bool) -> String {
-        var parts = [id.displayName]
-        if let plan = snap?.plan { parts.append(plan) }
-        if idle { parts.append("Idle") }
-        if let account = snap?.account { parts.append(Self.masked(account)) }
-        return parts.joined(separator: " · ")
+    /// Submenu header: "Max 5x · al•••@example.com", or nil when neither
+    /// is known.
+    private func accountText(for snap: ProviderSnapshot) -> String? {
+        let parts = [snap.plan, snap.account.map(Self.masked)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// "hello@example.com" → "he•••@example.com": enough to tell accounts
@@ -337,6 +385,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             ? .dateTime.weekday(.abbreviated).hour().minute()
             : .dateTime.month(.abbreviated).day().hour().minute()
         return date.formatted(style)
+    }
+
+    /// Reset time for a summary row's subtitle: "resets in 4h 50m".
+    private func resetPhrase(_ date: Date?) -> String? {
+        guard let date, let text = resetText(date) else { return nil }
+        return date.timeIntervalSinceNow <= 0 ? text : "resets \(text)"
     }
 
     // MARK: - Actions
