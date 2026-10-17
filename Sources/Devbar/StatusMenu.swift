@@ -73,8 +73,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             addPortsSection()
         }
         addSeparator()
-        // Opening the menu already refreshes, so Refresh only shows with ⌥;
-        // ⌘R works either way.
+        // Opening the menu already refreshes, so Refresh only shows with ⌥,
+        // or while a provider's Keychain message asks for it by name; ⌘R
+        // works either way.
+        let needsApproval = ProviderID.allCases.contains {
+            SettingsStore.isEnabled($0) && store.snapshot(for: $0)?.state.isKeychainDenied == true
+        }
         var refreshTitle = "Refresh"
         if store.isRefreshing {
             refreshTitle = "Refreshing…"
@@ -84,7 +88,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let refresh = NSMenuItem(title: refreshTitle, action: #selector(refreshNow), keyEquivalent: "r")
         refresh.target = self
         refresh.isEnabled = !store.isRefreshing
-        refresh.isHidden = !showsDetails
+        refresh.isHidden = !(showsDetails || needsApproval)
         refresh.allowsKeyEquivalentWhenHidden = true
         refreshItem = refresh
         renderedMenu.addItem(refresh)
