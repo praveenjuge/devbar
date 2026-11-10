@@ -1,17 +1,29 @@
 ---
 title: Dev servers
-description: Devbar lists the ports your projects are listening on, so you can open, copy, or stop a dev server without hunting for the terminal it's in.
+description: Devbar lists the ports your projects are listening on, grouped by project, so you can open, copy, or stop a dev server without hunting for the terminal it's in.
 sidebar:
   icon: server
 ---
 
-Below the quota, the menu lists every dev server running on your Mac. Each row shows `localhost:<port>`, with the project folder and the process name under it. When nothing is running, the list doesn't appear.
+Below the quota, the menu lists every project with a dev server running on your Mac, one row per project folder. A project with one port shows `localhost:<port>` and the process name under it. A project with several ports shows its process names and a count of its ports, so a project running many servers still takes one row. When nothing is running, the list doesn't appear.
 
 Devbar scans each time you open the menu, using `lsof` to find TCP ports that are listening. A port counts as a dev server when its process was started from a project folder. System services and apps start from `/` or from inside their app bundle, so they're left out.
 
-## What you can do
+## Projects with several ports
 
-Hover over a row to open its submenu:
+Hover over a project to see its ports, each with the process name under it.
+
+<Frame caption="Every port in a project, and one click to stop them all.">
+  <img src="/screenshots/dev-servers-light.png" width="222" alt="A project's submenu listing four localhost ports with their process names, and Stop All Processes at the bottom" className="dark:hidden" />
+  <img src="/screenshots/dev-servers-dark.png" width="222" alt="A project's submenu listing four localhost ports with their process names, and Stop All Processes at the bottom" className="hidden dark:block" />
+</Frame>
+
+- **Stop All Processes** sends `SIGTERM` to every process listening in that project.
+- **Force Stop All Processes** sends `SIGKILL`. Hold ⌥ to see it.
+
+## What you can do with a port
+
+Hover over a port, or over a project with a single port, to open its actions:
 
 - **Open in Browser** opens `http://localhost:<port>`.
 - **Copy URL** copies the URL to the clipboard. Hold ⌥ to see **Copy PID** in its place.

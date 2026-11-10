@@ -13,6 +13,38 @@ struct ListeningPort: Sendable, Equatable {
     var url: URL { URL(string: "http://localhost:\(port)")! }
 }
 
+/// The ports one project folder is listening on: a single menu row.
+struct ProjectPorts: Sendable, Equatable {
+    var directory: String
+    /// Sorted by port number.
+    var ports: [ListeningPort]
+
+    var name: String { (directory as NSString).lastPathComponent }
+
+    /// Process names in port order, each listed once.
+    var processes: [String] {
+        var seen = Set<String>()
+        return ports.map(\.process).filter { seen.insert($0).inserted }
+    }
+
+    /// One process can listen on several ports; stopping signals each once.
+    var pids: [pid_t] {
+        var seen = Set<pid_t>()
+        return ports.map(\.pid).filter { seen.insert($0).inserted }
+    }
+
+    /// One group per project folder, sorted by name, then path so two
+    /// folders with the same name keep a stable order.
+    static func grouped(_ ports: [ListeningPort]) -> [ProjectPorts] {
+        Dictionary(grouping: ports, by: \.directory)
+            .map { ProjectPorts(directory: $0.key, ports: $0.value.sorted { $0.port < $1.port }) }
+            .sorted {
+                let order = $0.name.localizedCaseInsensitiveCompare($1.name)
+                return order == .orderedSame ? $0.directory < $1.directory : order == .orderedAscending
+            }
+    }
+}
+
 /// Lists dev servers: TCP listeners started from a project folder. A GUI
 /// for `lsof -iTCP -sTCP:LISTEN`, filtered so system services and apps
 /// (launched with `/` or their own bundle as working directory) stay out.
@@ -57,6 +89,11 @@ enum PortScanner {
     /// SIGTERM asks the server to shut down cleanly; SIGKILL can't be ignored.
     static func stop(_ port: ListeningPort, force: Bool) {
         kill(port.pid, force ? SIGKILL : SIGTERM)
+    }
+
+    /// Stops every process listening in a project folder.
+    static func stopAll(_ project: ProjectPorts, force: Bool) {
+        for pid in project.pids { kill(pid, force ? SIGKILL : SIGTERM) }
     }
 
     private static func lsof() -> String? {

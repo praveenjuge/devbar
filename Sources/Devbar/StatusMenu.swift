@@ -2,8 +2,8 @@ import AppKit
 
 /// Native status-item menu (Battery-menu style): one summary row per
 /// provider with its tightest quota window (every window in its submenu),
-/// running dev servers, then Caffeinate / Camera, Worktrees / Skills /
-/// Settings, and Quit. All rows are stock menu items: badged rows, plus
+/// one row per project with running dev servers, then Caffeinate / Camera,
+/// Worktrees / Skills / Settings, and Quit. All rows are stock menu items: badged rows, plus
 /// native capacity indicators on their own lines. ⌥-clicking the icon
 /// also shows Refresh with the last update time, like Wi-Fi's ⌥ menu.
 @MainActor
@@ -245,15 +245,50 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         ports = await PortScanner.scan(hidden: Set(SettingsStore.hiddenProcesses))
     }
 
-    /// No section header: `localhost:<port>` rows explain themselves. With
-    /// nothing running the section is left out entirely.
+    /// One row per project folder, so a project with many ports (emulators,
+    /// workers) stays one line. A lone port keeps its address in the
+    /// subtitle and opens its actions directly; several ports show their
+    /// count as the badge and list in the submenu. No section header, and
+    /// with nothing running the section is left out entirely.
     private func addPortsSection() {
-        for port in ports {
-            let row = NSMenuItem(title: "localhost:\(port.port)", action: nil, keyEquivalent: "")
-            setDetail("\(port.project) · \(port.process)", on: row)
-            row.submenu = portMenu(for: port)
+        for project in ProjectPorts.grouped(ports) {
+            let row = NSMenuItem(title: project.name, action: nil, keyEquivalent: "")
+            if project.ports.count == 1, let port = project.ports.first {
+                setDetail("localhost:\(port.port) · \(port.process)", on: row)
+                row.submenu = portMenu(for: port)
+            } else {
+                setDetail(project.processes.joined(separator: ", "), on: row)
+                row.badge = NSMenuItemBadge(count: project.ports.count)
+                row.submenu = projectMenu(for: project)
+            }
             renderedMenu.addItem(row)
         }
+    }
+
+    /// A project's ports, each with its own actions, then Stop All.
+    private func projectMenu(for project: ProjectPorts) -> NSMenu {
+        let menu = NSMenu()
+        for port in project.ports {
+            let row = NSMenuItem(title: "localhost:\(port.port)", action: nil, keyEquivalent: "")
+            setDetail(port.process, on: row)
+            row.submenu = portMenu(for: port)
+            menu.addItem(row)
+        }
+        menu.addItem(.separator())
+        menu.addItem(projectAction("Stop All Processes", #selector(stopProject), project))
+        // Holding Option swaps in Force Stop, as on a single port.
+        let force = projectAction("Force Stop All Processes", #selector(forceStopProject), project)
+        force.keyEquivalentModifierMask = .option
+        force.isAlternate = true
+        menu.addItem(force)
+        return menu
+    }
+
+    private func projectAction(_ title: String, _ action: Selector, _ project: ProjectPorts) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        item.representedObject = project
+        return item
     }
 
     private func portMenu(for port: ListeningPort) -> NSMenu {
@@ -452,6 +487,21 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         guard let port = sender.representedObject as? ListeningPort else { return }
         PortScanner.stop(port, force: force)
         ports.removeAll { $0.pid == port.pid }
+        rebuild()
+    }
+
+    @objc private func stopProject(_ sender: NSMenuItem) {
+        stopAll(sender, force: false)
+    }
+
+    @objc private func forceStopProject(_ sender: NSMenuItem) {
+        stopAll(sender, force: true)
+    }
+
+    private func stopAll(_ sender: NSMenuItem, force: Bool) {
+        guard let project = sender.representedObject as? ProjectPorts else { return }
+        PortScanner.stopAll(project, force: force)
+        ports.removeAll { $0.directory == project.directory }
         rebuild()
     }
 
