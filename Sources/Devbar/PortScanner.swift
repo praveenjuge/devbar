@@ -27,12 +27,6 @@ struct ProjectPorts: Sendable, Equatable {
         return ports.map(\.process).filter { seen.insert($0).inserted }
     }
 
-    /// One process can listen on several ports; stopping signals each once.
-    var pids: [pid_t] {
-        var seen = Set<pid_t>()
-        return ports.map(\.pid).filter { seen.insert($0).inserted }
-    }
-
     /// One group per project folder, sorted by name, then path so two
     /// folders with the same name keep a stable order.
     static func grouped(_ ports: [ListeningPort]) -> [ProjectPorts] {
@@ -91,9 +85,9 @@ enum PortScanner {
         kill(port.pid, force ? SIGKILL : SIGTERM)
     }
 
-    /// Stops every process listening in a project folder.
-    static func stopAll(_ project: ProjectPorts, force: Bool) {
-        for pid in project.pids { kill(pid, force ? SIGKILL : SIGTERM) }
+    /// Stops each process once, however many ports it listens on.
+    static func stopAll(_ ports: [ListeningPort], force: Bool) {
+        for pid in Set(ports.map(\.pid)) { kill(pid, force ? SIGKILL : SIGTERM) }
     }
 
     private static func lsof() -> String? {

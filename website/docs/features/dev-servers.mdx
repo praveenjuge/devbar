@@ -9,6 +9,10 @@ Below the quota, the menu lists every project with a dev server running on your 
 
 Devbar scans each time you open the menu, using `lsof` to find TCP ports that are listening. A port counts as a dev server when its process was started from a project folder. System services and apps start from `/` or from inside their app bundle, so they're left out.
 
+## Stop every dev server
+
+When two or more projects are running, **Stop All Dev Servers** appears below them. It sends `SIGTERM` to every process in the list, once each. Hold ⌥ to see **Force Stop All Dev Servers**, which sends `SIGKILL`. Hidden processes aren't in the list, so they keep running.
+
 ## Projects with several ports
 
 Hover over a project to see its ports, each with the process name under it.

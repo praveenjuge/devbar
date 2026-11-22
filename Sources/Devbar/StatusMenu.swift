@@ -249,9 +249,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     /// workers) stays one line. A lone port keeps its address in the
     /// subtitle and opens its actions directly; several ports show their
     /// count as the badge and list in the submenu. No section header, and
-    /// with nothing running the section is left out entirely.
+    /// with nothing running the section is left out entirely. With two or
+    /// more projects, Stop All Dev Servers follows; one project's own
+    /// submenu already stops everything.
     private func addPortsSection() {
-        for project in ProjectPorts.grouped(ports) {
+        let projects = ProjectPorts.grouped(ports)
+        for project in projects {
             let row = NSMenuItem(title: project.name, action: nil, keyEquivalent: "")
             if project.ports.count == 1, let port = project.ports.first {
                 setDetail("localhost:\(port.port) · \(port.process)", on: row)
@@ -263,6 +266,13 @@ final class StatusMenu: NSObject, NSMenuDelegate {
             }
             renderedMenu.addItem(row)
         }
+        guard projects.count > 1 else { return }
+        renderedMenu.addItem(action("Stop All Dev Servers", #selector(stopEverything)))
+        // Holding Option swaps in Force Stop, as on a project.
+        let force = action("Force Stop All Dev Servers", #selector(forceStopEverything))
+        force.keyEquivalentModifierMask = .option
+        force.isAlternate = true
+        renderedMenu.addItem(force)
     }
 
     /// A project's ports, each with its own actions, then Stop All.
@@ -500,8 +510,22 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     private func stopAll(_ sender: NSMenuItem, force: Bool) {
         guard let project = sender.representedObject as? ProjectPorts else { return }
-        PortScanner.stopAll(project, force: force)
+        PortScanner.stopAll(project.ports, force: force)
         ports.removeAll { $0.directory == project.directory }
+        rebuild()
+    }
+
+    @objc private func stopEverything(_ sender: NSMenuItem) {
+        stopAllServers(force: false)
+    }
+
+    @objc private func forceStopEverything(_ sender: NSMenuItem) {
+        stopAllServers(force: true)
+    }
+
+    private func stopAllServers(force: Bool) {
+        PortScanner.stopAll(ports, force: force)
+        ports = []
         rebuild()
     }
 
